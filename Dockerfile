@@ -1,18 +1,24 @@
 FROM golang:1.25-alpine AS builder
 
-WORKDIR /app
-COPY go.mod ./
-COPY . .
-RUN go build -o /bin/agent-gateway .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
 
-FROM alpine:3.22
+RUN apk add --no-cache ca-certificates git
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+COPY . .
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /bin/agent-gateway .
+
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app
 COPY --from=builder /bin/agent-gateway /bin/agent-gateway
 COPY config ./config
 
-ENV HTTP_PORT=:5010
 EXPOSE 5010
 
+USER nonroot:nonroot
 ENTRYPOINT ["/bin/agent-gateway"]
-CMD ["--config=./config/local/config.yaml"]
+CMD ["--config=./config/dev/config.yaml"]
