@@ -13,6 +13,7 @@ import (
 	"github.com/vucongthanh92/courier-agent-gateway/config"
 	"github.com/vucongthanh92/courier-agent-gateway/helper/constants"
 	"github.com/vucongthanh92/courier-agent-gateway/internal/gateway"
+	"github.com/vucongthanh92/courier-agent-gateway/internal/profiling"
 	"github.com/vucongthanh92/courier-agent-gateway/internal/provider/openai"
 	kafkarepo "github.com/vucongthanh92/courier-agent-gateway/internal/repository/external/kafka"
 	"github.com/vucongthanh92/courier-agent-gateway/internal/repository/qdrant"
@@ -27,6 +28,17 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
+	stopProfiler, profilerEnabled, err := profiling.Start(cfg.ServiceName)
+	if err != nil {
+		log.Printf("continuous profiling is unavailable: %v", err)
+	} else if profilerEnabled {
+		defer func() {
+			if err := stopProfiler(); err != nil {
+				log.Printf("stop continuous profiling: %v", err)
+			}
+		}()
+	}
+
 	qdrantClient := qdrant.NewClient(cfg.Qdrant)
 	openAIClient := openai.NewClient(cfg.OpenAI)
 	agentGateway := gateway.NewService(cfg, qdrantClient, openAIClient)
